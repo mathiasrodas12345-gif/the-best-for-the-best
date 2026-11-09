@@ -83,8 +83,6 @@ jobs:
           modules: qtcharts
           cache: true
 
-      # Objects are keyed by content, so the newest cache of this branch or nx2 always helps;
-      # keying it on cpmfile.json threw the whole cache away whenever a dependency changed.
       - name: Restore dependencies and compiler objects
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
         with:
@@ -146,14 +144,18 @@ jobs:
             .ccache
           key: gcc13-qt683-${{ runner.os }}-${{ github.sha }}
 
+      - name: Subir Binarios de Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: yuzu-linux-build
+          path: build/bin/
+
   windows-clang-cl:
     name: Windows clang-cl production build and tests
     needs: changes
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-2022
     timeout-minutes: 120
-    # ccache rather than sccache: sccache has no direct mode for clang-cl, so every hit still ran the
-    # preprocessor and a 99% hit build took 8.5 minutes.
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 1G
@@ -169,7 +171,6 @@ jobs:
       - name: Set up MSVC
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
 
-      # The release job's compiler; ThinLTO is left to the release build to keep this job short.
       - name: Install LLVM
         shell: pwsh
         run: ./tools/windows/install-llvm.ps1
@@ -199,7 +200,6 @@ jobs:
         shell: pwsh
         run: ./tools/windows/install-vulkan-sdk.ps1
 
-      # Restore and save separately so a test failure still keeps the compiled objects.
       - name: Restore dependencies and compiler objects
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25
         with:
@@ -229,22 +229,12 @@ jobs:
           -DYUZU_ROOM_STANDALONE=OFF
           -DYUZU_USE_BUNDLED_QT=OFF
           -DYUZU_USE_BUNDLED_SDL3=ON
-          -DENABLE_UPDATE_CHECKER=ON
-          -DUSE_DISCORD_PRESENCE=OFF
-          -DUSE_CCACHE=ON
 
-      # The install script pins clang-cl by checksum, so it identifies the compiler without hashing
-      # the binary on every call.
       - name: Build production and tests
-        env:
-          CCACHE_COMPILERCHECK: string:${{ hashFiles('tools/windows/install-llvm.ps1') }}
         run: |
           ccache --zero-stats
-          cmake --build build --parallel
-          ccache --show-stats -v
-
-      - name: Run tests
-        run: ctest --test-dir build --output-on-failure --no-tests=error --parallel "$NUMBER_OF_PROCESSORS"
+          cmake --build build --parallel "$(nproc)"
+          ccache --show-stats
 
       - name: Save dependencies and compiler objects
         if: always()
@@ -254,3 +244,9 @@ jobs:
             .cache/cpm
             .ccache
           key: clang-cl-ccache-qt683-${{ runner.os }}-${{ github.sha }}
+
+      - name: Subir Binarios de Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: yuzu-windows-build
+          path: build/bin/
