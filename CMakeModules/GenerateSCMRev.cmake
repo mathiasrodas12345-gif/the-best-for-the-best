@@ -27,6 +27,10 @@ else()
     set(IS_DEV_BUILD true)
 endif()
 
+if (LICHII_FORK_LABEL)
+    set(BUILD_VERSION "${BUILD_VERSION}+${LICHII_FORK_LABEL}")
+endif()
+
 if (NIGHTLY_BUILD)
     set(IS_NIGHTLY_BUILD true)
 else()
